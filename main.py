@@ -6,7 +6,8 @@ from pyrogram.errors import FloodWait, BadRequest
 from pyrogram.types import Message
 
 from config_data.bot_conf import get_my_loggers, conf, tz
-from services.db_func import check_user, get_or_create_user, user_finished, user_dead
+from services.db_func import check_user, get_or_create_user, user_finished, user_dead, get_task_from_id, \
+    create_hole_step, set_task_complete, get_alive_users, get_created_tasks
 
 logger, err_log = get_my_loggers()
 
@@ -29,72 +30,103 @@ async def send_message(client, chat_id, text):
         logger.error(err)
         raise err
 
+msg1 = 'Текст 1'
+msg2 = 'Текст 2'
+msg3 = 'Текст 3'
+trigger = False
 
-async def worker(client: Client, message: Message):
-    """Воронка для нового пользователя"""
-    try:
-        logger.debug(f'Начало воронки')
-        # await asyncio.sleep(6 * 60)
-        await asyncio.sleep(3)
 
-        # Этап 1.
-        user = await get_or_create_user(message.from_user)
-        status = user.status
-        if status in ('dead', 'finished'):
-            return
-        text = 'Текст 1'
-        await send_message(client, message.chat.id, text)
-        logger.debug(f'Текст 1 отправлен для {user}')
-        # await asyncio.sleep(39 * 60)
-        await asyncio.sleep(10)
+async def hole_step_1(client: Client, task_id: int):
+    """Первый этап"""
+    task = await get_task_from_id(task_id)
+    while task.status == 'created' and task.user.status == 'alive':
+        now = datetime.datetime.now(tz=tz)
+        task = await get_task_from_id(task_id)
+        if now >= task.task_start_time:
+            # Выполняем этап 1
+            await send_message(client, task.user.tg_id, text=msg1)
+            await set_task_complete(task_id)
+            # Создаем этап 2
+            step2 = await create_hole_step(
+                user_id=task.user_id, step=2,
+                # task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(minutes=39)
+                task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(seconds=10)
+            )
+            asyncio.create_task(hole_step_2(client, step2.id))
+        await asyncio.sleep(5)
+        task = await get_task_from_id(task_id)
 
-        # Этап 2.
-        user = await get_or_create_user(message.from_user)
-        status = user.status
-        if status in ('dead', 'finished'):
-            logger.debug(f'Прерываем этап 2. Статус {status}')
-            return
-        text = 'Текст 2'
-        await send_message(client, message.chat.id, text)
-        logger.debug(f'Текст 2 отправлен для {user}')
-        start_time = datetime.datetime.now(tz=tz)
 
-        # Ждем этап 3
-        while True:
-            delta = datetime.datetime.now(tz=tz) - start_time
-            # if delta > datetime.timedelta(days=2, hours=2):
-            if delta > datetime.timedelta(seconds=10):
-                logger.debug('Время вышло')
-                break
-            await asyncio.sleep(1)
+async def hole_step_2(client: Client, task_id: int):
+    """Второй этап"""
+    task = await get_task_from_id(task_id)
+    while task.status == 'created' and task.user.status == 'alive':
+        now = datetime.datetime.now(tz=tz)
+        task = await get_task_from_id(task_id)
+        if now >= task.task_start_time:
+            # Выполняем этап 2
+            if trigger is False:
+                await send_message(client, task.user.tg_id, text=msg2)
+                await set_task_complete(task_id)
+                # Создаем этап 3
+                step3 = await create_hole_step(
+                    user_id=task.user_id, step=3,
+                    # task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(days=1, hours=2)
+                    task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(seconds=10)
+                )
+                asyncio.create_task(hole_step_3(client, step3.id))
+            else:
+                # если
+                pass
+        await asyncio.sleep(5)
+        task = await get_task_from_id(task_id)
 
-        # Эьап 3
-        # Если статус finished значит точка отсчета -  смена статуса
-        text = 'Текст 3'
-        user = await get_or_create_user(message.from_user)
-        status = user.status
-        if status == 'dead':
-            logger.debug('Статус dead')
-            return
-        if status == 'alive':
-            await send_message(client, message.chat.id, text)
-            logger.debug(f'Текст 3 отправлен для {user}')
-            # Установка статуса finished
-            await user_finished(user.id)
-            return
-        elif status == 'finished':
-            logger.debug('Этап 3. Статус finished')
-            start_time = user.status_updated_at
-            while True:
-                delta = datetime.datetime.now(tz=tz) - start_time
-                # if delta > datetime.timedelta(days=2, hours=2):
-                if delta > datetime.timedelta(seconds=10):
-                    await send_message(client, message.chat.id, text)
-                    logger.debug(f'Текст 3 отправлен для {user}')
-                    break
 
-    except Exception as err:
-        logger.error(f'Воронка прекращена из-за: {err}')
+async def hole_step_3(client: Client, task_id: int):
+    """Третий этап"""
+    task = await get_task_from_id(task_id)
+    while task.status == 'created'  and task.user.status == 'alive':
+        now = datetime.datetime.now(tz=tz)
+        task = await get_task_from_id(task_id)
+        if now >= task.task_start_time:
+            # Выполняем этап 3
+            await send_message(client, task.user.tg_id, text=msg3)
+            await set_task_complete(task_id)
+        await asyncio.sleep(5)
+        task = await get_task_from_id(task_id)
+
+
+async def trigger_search(client):
+    """Проверка триггера"""
+    while True:
+        # Я понял так: если нашли триггер - сообщение 2 отменится.
+        # Если пользователь на этапе 1 и ждет этап 2, то делаем ему этап 3 через 1 day 2 hours
+        users = await get_alive_users()
+        for user in users:
+            for task in user.tasks:
+                if task.step == 1 and task.status == 'created':
+                    step3 = await create_hole_step(
+                        user_id=task.user_id, step=3,
+                        task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(days=1, hours=2)
+                    )
+                    asyncio.create_task(hole_step_3(client, step3.id))
+
+        await asyncio.sleep(1)
+
+
+async def start_tasks(client):
+    """Запускает таски при переазапуске"""
+    logger.debug('Запуск незавершенных задач')
+    tasks = await get_created_tasks()
+    logger.debug(f'Задач: {len(tasks)}')
+    for task in tasks:
+        print(task.id, task.step)
+        if task.step == 1:
+            asyncio.create_task(hole_step_1(client, task.id))
+        elif task.step == 2:
+            asyncio.create_task(hole_step_2(client, task.id))
+        elif task.step == 3:
+            asyncio.create_task(hole_step_3(client, task.id))
 
 
 async def pyrobot():
@@ -113,17 +145,24 @@ async def pyrobot():
                     logger.debug(f'Статус пользователя {send_user} изменен на finished')
                     break
 
-    @client.on_message(filters=filters.private)
+    @client.on_message(filters.private & ~filters.bot)
     async def incoming_message_hole_check(client: Client, message: Message):
         is_old_user = await check_user(message.from_user.id)
         if is_old_user:
             logger.debug('Старый пользователь')
             return
-        asyncio.create_task(worker(client, message))
+        # Создание 1 этапа
+        user = await get_or_create_user(message.from_user)
+        task = await create_hole_step(user_id=user.id, step=1,
+                                      # task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(minutes=6)
+                                      task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(seconds=10)
+                                      )
+        asyncio.create_task(hole_step_1(client=client, task_id=task.id))
         logger.debug('Воронка создана')
 
     await client.start()
     try:
+        await start_tasks(client)
         await idle()
     finally:
         await client.stop()

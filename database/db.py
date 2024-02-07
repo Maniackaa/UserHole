@@ -44,6 +44,7 @@ class User(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default='alive')
     status_updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    tasks: Mapped[list['Task']] = relationship(back_populates='user', lazy='subquery')
 
     def __repr__(self):
         return f'{self.id}. {self.tg_id} {self.username or "-"}'
@@ -59,6 +60,18 @@ class User(Base):
         except Exception as err:
             err_log.error(f'Ошибка изменения {key} на {value}')
             raise err
+
+
+class Task(Base):
+    __tablename__ = 'tasks'
+    id: Mapped[int] = mapped_column(primary_key=True,
+                                    autoincrement=True,
+                                    comment='Первичный ключ')
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
+    user = relationship("User", back_populates="tasks", lazy='subquery')
+    step: Mapped[int] = mapped_column(Integer())
+    task_start_time: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default='created')
 
 
 class BotSettings(Base):
@@ -88,6 +101,7 @@ if not database_exists(db_url):
 Base.metadata.create_all(sync_engine)
 
 
+
 if __name__ == '__main__':
 
     async def init_models():
@@ -102,14 +116,16 @@ if __name__ == '__main__':
             result = await session.execute(stmt)
             print(result.scalar())
 
-    if __name__ == '__main__':
-        if sys.version_info[:2] == (3, 7):
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        loop = asyncio.get_event_loop()
-        try:
-            async_session = async_sessionmaker(engine, expire_on_commit=False)
-            loop.run_until_complete(init_models())
-            loop.run_until_complete(test_user(async_session))
-            loop.run_until_complete(asyncio.sleep(2.0))
-        finally:
-            loop.close()
+
+
+    # if __name__ == '__main__':
+    #     if sys.version_info[:2] == (3, 7):
+    #         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    #     loop = asyncio.get_event_loop()
+    #     try:
+    #         async_session = async_sessionmaker(engine, expire_on_commit=False)
+    #         loop.run_until_complete(init_models())
+    #         loop.run_until_complete(test_user(async_session))
+    #         loop.run_until_complete(asyncio.sleep(2.0))
+    #     finally:
+    #         loop.close()
