@@ -45,7 +45,6 @@ async def hole_step_1(client: Client, task_id: int):
         if now >= task.task_start_time:
             # Выполняем этап 1
             await send_message(client, task.user.tg_id, text=msg1)
-            await set_task_complete(task_id)
             # Создаем этап 2
             step2 = await create_hole_step(
                 user_id=task.user_id, step=2,
@@ -53,8 +52,11 @@ async def hole_step_1(client: Client, task_id: int):
                 task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(seconds=10)
             )
             asyncio.create_task(hole_step_2(client, step2.id))
+            break
         await asyncio.sleep(5)
         task = await get_task_from_id(task_id)
+    await set_task_complete(task_id)
+
 
 
 async def hole_step_2(client: Client, task_id: int):
@@ -67,7 +69,6 @@ async def hole_step_2(client: Client, task_id: int):
             # Выполняем этап 2
             if trigger is False:
                 await send_message(client, task.user.tg_id, text=msg2)
-                await set_task_complete(task_id)
             # Создаем этап 3
             step3 = await create_hole_step(
                 user_id=task.user_id, step=3,
@@ -75,8 +76,10 @@ async def hole_step_2(client: Client, task_id: int):
                 task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(seconds=10)
             )
             asyncio.create_task(hole_step_3(client, step3.id))
+            break
         await asyncio.sleep(5)
         task = await get_task_from_id(task_id)
+    await set_task_complete(task_id)
 
 
 async def hole_step_3(client: Client, task_id: int):
@@ -88,10 +91,10 @@ async def hole_step_3(client: Client, task_id: int):
         if now >= task.task_start_time:
             # Выполняем этап 3
             await send_message(client, task.user.tg_id, text=msg3)
-            await set_task_complete(task_id)
+            break
         await asyncio.sleep(5)
         task = await get_task_from_id(task_id)
-
+    await set_task_complete(task_id)
 
 async def start_tasks(client):
     """Запускает таски при переазапуске"""
@@ -142,7 +145,6 @@ async def pyrobot():
     await client.start()
     try:
         await start_tasks(client)
-        asyncio.create_task(trigger_search(client))
         await idle()
     finally:
         await client.stop()
