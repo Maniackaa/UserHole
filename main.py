@@ -10,6 +10,7 @@ from services.db_func import check_user, get_or_create_user, user_finished, user
 
 logger, err_log = get_my_loggers()
 
+
 async def send_message(client, chat_id, text):
     """Отправка сообщения"""
     try:
