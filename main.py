@@ -68,16 +68,13 @@ async def hole_step_2(client: Client, task_id: int):
             if trigger is False:
                 await send_message(client, task.user.tg_id, text=msg2)
                 await set_task_complete(task_id)
-                # Создаем этап 3
-                step3 = await create_hole_step(
-                    user_id=task.user_id, step=3,
-                    # task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(days=1, hours=2)
-                    task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(seconds=10)
-                )
-                asyncio.create_task(hole_step_3(client, step3.id))
-            else:
-                # если
-                pass
+            # Создаем этап 3
+            step3 = await create_hole_step(
+                user_id=task.user_id, step=3,
+                # task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(days=1, hours=2)
+                task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(seconds=10)
+            )
+            asyncio.create_task(hole_step_3(client, step3.id))
         await asyncio.sleep(5)
         task = await get_task_from_id(task_id)
 
