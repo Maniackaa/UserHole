@@ -96,24 +96,6 @@ async def hole_step_3(client: Client, task_id: int):
         task = await get_task_from_id(task_id)
 
 
-async def trigger_search(client):
-    """Проверка триггера"""
-    while True:
-        # Я понял так: если нашли триггер - сообщение 2 отменится.
-        # Если пользователь на этапе 1 и ждет этап 2, то делаем ему этап 3 через 1 day 2 hours
-        users = await get_alive_users()
-        for user in users:
-            for task in user.tasks:
-                if task.step == 1 and task.status == 'created':
-                    step3 = await create_hole_step(
-                        user_id=task.user_id, step=3,
-                        task_start_time=datetime.datetime.now(tz=tz) + datetime.timedelta(days=1, hours=2)
-                    )
-                    asyncio.create_task(hole_step_3(client, step3.id))
-
-        await asyncio.sleep(1)
-
-
 async def start_tasks(client):
     """Запускает таски при переазапуске"""
     logger.debug('Запуск незавершенных задач')
@@ -163,6 +145,7 @@ async def pyrobot():
     await client.start()
     try:
         await start_tasks(client)
+        asyncio.create_task(trigger_search(client))
         await idle()
     finally:
         await client.stop()

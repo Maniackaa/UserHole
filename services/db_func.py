@@ -141,6 +141,7 @@ async def create_hole_step(user_id: int, step: int, task_start_time: datetime.da
 
 
 async def get_alive_users() -> list[User]:
+    """Юзеры которые на 1 этапе, но нет 3-го"""
     async with async_session() as session:
         stmt = select(User).where(User.status == 'alive')
         result = await session.execute(stmt)
@@ -148,10 +149,13 @@ async def get_alive_users() -> list[User]:
         return users
 
 
-async def get_created_tasks() -> list[Task]:
+async def get_created_tasks(step=None) -> list[Task]:
     """Возвращает Task по id"""
     async with async_session() as session:
         stmt = select(Task).where(Task.status == 'created')
+        if step:
+            stmt = stmt.where(Task.step == step)
+        print(stmt)
         result = await session.execute(stmt)
         tasks = result.scalars().all()
         logger.debug(f'Найдены таски:{tasks}')
@@ -159,8 +163,9 @@ async def get_created_tasks() -> list[Task]:
 
 
 async def main():
-    x = await get_created_tasks()
+    x = await get_created_tasks(step=1)
     print(x)
+
 
 
 if __name__ == '__main__':
